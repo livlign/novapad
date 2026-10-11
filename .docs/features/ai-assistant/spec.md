@@ -92,6 +92,15 @@ handing over a pattern.
 **Key never crosses the bridge.** There is no `getKey` on `window.api.ai` by design.
 `status()` returns `{ available, hasKey, hint }` with the last-4 hint computed in main.
 
+**Model picker lists the key's chat models only (decided 2026-10-11).** `ai:test` follows
+`nextPageToken` (capped at 5 pages) and returns `{ id, displayName }`, newest first. The
+Gemini provider keeps `gemini-*` text models and drops TTS, image, live-audio, embedding and
+Gemma models, which reject the system instruction or JSON schema the assistant sends.
+Anything filtered out can still be entered via Settings ▸ Custom…, and Test connection never
+overwrites a custom id. The list is cached in `aiStore.availableModels`. Settings loads it
+automatically when a key exists, and the chat panel header uses the same list for its model
+dropdown. The cache is reset when the key is replaced or removed.
+
 **Transcripts are in-memory only**, keyed by buffer id. They contain document excerpts;
 persisting them would put plaintext file content somewhere the existing backup/cleanup
 logic doesn't know about.

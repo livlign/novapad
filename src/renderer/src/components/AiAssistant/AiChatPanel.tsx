@@ -47,6 +47,9 @@ export default function AiChatPanel(): React.ReactElement {
   const clearConversation = useAiStore((s) => s.clearConversation)
 
   const aiModel = useConfigStore((s) => s.aiModel)
+  const setConfigProp = useConfigStore((s) => s.setProp)
+  const availableModels = useAiStore((s) => s.availableModels)
+  const loadModels = useAiStore((s) => s.loadModels)
   const aiDefaultContext = useConfigStore((s) => s.aiDefaultContext)
 
   const [draft, setDraft] = useState('')
@@ -93,6 +96,19 @@ export default function AiChatPanel(): React.ReactElement {
     }
   }, [activeId, messages.length])
 
+  // Populate the header's model picker once a key is known to exist. Reuses
+  // the list Settings already fetched, if any.
+  useEffect(() => {
+    if (keyReady) void loadModels()
+  }, [keyReady, loadModels])
+
+  // The configured model always stays selectable, even when it was typed via
+  // Settings ▸ Custom… and so isn't in the filtered list.
+  const modelOptions = useMemo(() => {
+    const list = availableModels ?? []
+    return list.some((m) => m.id === aiModel) ? list : [{ id: aiModel, displayName: aiModel }, ...list]
+  }, [availableModels, aiModel])
+
   // Follow the stream as it grows, but don't fight a user who scrolled up.
   useEffect(() => {
     const el = scrollRef.current
@@ -129,7 +145,24 @@ export default function AiChatPanel(): React.ReactElement {
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
         <GeminiMark size={15} />
         <span className="text-xs font-medium text-foreground">Gemini</span>
-        <span className="truncate font-mono text-xs text-muted-foreground">{aiModel}</span>
+        <select
+          value={aiModel}
+          onChange={(e) => setConfigProp('aiModel', e.target.value)}
+          disabled={busy}
+          title={busy ? 'Wait for the current reply to finish' : `Model: ${aiModel}`}
+          className={cn(
+            'min-w-0 max-w-[180px] truncate rounded border border-transparent bg-transparent px-1 py-0.5',
+            'font-mono text-xs text-muted-foreground outline-none hover:border-border focus:border-ring',
+            busy ? 'cursor-not-allowed' : 'cursor-pointer'
+          )}
+          data-testid="ai-panel-model-select"
+        >
+          {modelOptions.map((m) => (
+            <option key={m.id} value={m.id} title={m.id}>
+              {m.displayName}
+            </option>
+          ))}
+        </select>
         <div className="ml-auto flex items-center gap-0.5">
           <IconButton title="AI settings" onClick={openSettings}>
             <Settings2 size={14} />

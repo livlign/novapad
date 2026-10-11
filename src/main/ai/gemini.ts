@@ -2,6 +2,7 @@ import {
   AiProvider,
   AiRequest,
   BuiltRequest,
+  ModelListPage,
   ParsedChunk,
   BASE_SYSTEM_PROMPT,
   MODE_SYSTEM_PROMPT,
@@ -56,6 +57,18 @@ const DEFAULT_MODEL = 'gemini-3.5-flash'
 function safeModelId(model: string): string {
   const cleaned = (model ?? '').trim().replace(/^models\//, '')
   return /^[A-Za-z0-9._-]{1,100}$/.test(cleaned) ? cleaned : DEFAULT_MODEL
+}
+
+/**
+ * `generateContent` support alone is too broad: the list also carries TTS,
+ * image-generation, live-audio and Gemma models, which reject the system
+ * instruction or JSON response schema the assistant sends. Keep text Gemini
+ * models only; anything filtered out can still be typed via "Custom…".
+ */
+const NON_CHAT_MODEL = /(embed|tts|image|imagen|veo|aqa|live|audio|computer-use|robotics)/i
+
+function isChatModel(id: string): boolean {
+  return /^gemini-/i.test(id) && !NON_CHAT_MODEL.test(id)
 }
 
 export const geminiProvider: AiProvider = {
@@ -142,26 +155,31 @@ export const geminiProvider: AiProvider = {
     }
   },
 
-  buildListModels(apiKey: string): BuiltRequest {
+  buildListModels(apiKey: string, pageToken?: string): BuiltRequest {
+    const token = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''
     return {
-      url: `${BASE}/models?pageSize=100`,
+      url: `${BASE}/models?pageSize=100${token}`,
       headers: { 'x-goog-api-key': apiKey },
       body: ''
     }
   },
 
-  parseModelList(body: string): string[] {
+  parseModelList(body: string): ModelListPage {
     try {
       const json = JSON.parse(body) as {
-        models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>
+        models?: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[] }>
+        nextPageToken?: string
       }
-      return (json.models ?? [])
+      const models = (json.models ?? [])
         .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
-        .map((m) => (m.name ?? '').replace(/^models\//, ''))
-        .filter(Boolean)
-        .sort()
+        .map((m) => {
+          const id = (m.name ?? '').replace(/^models\//, '')
+          return { id, displayName: m.displayName?.trim() || id }
+        })
+        .filter((m) => isChatModel(m.id))
+      return { models, nextPageToken: json.nextPageToken || null }
     } catch {
-      return []
+      return { models: [], nextPageToken: null }
     }
   },
 
