@@ -52,6 +52,20 @@ export interface ParsedChunk {
   truncated?: boolean
 }
 
+/** One entry of a provider's live model list. */
+export interface AiModelInfo {
+  id: string
+  /** Human-readable name from the provider, falling back to the id. */
+  displayName: string
+}
+
+/** One page of a list-models response. */
+export interface ModelListPage {
+  models: AiModelInfo[]
+  /** Present when the provider has more pages to fetch. */
+  nextPageToken: string | null
+}
+
 export interface AiProvider {
   id: string
   label: string
@@ -62,10 +76,13 @@ export interface AiProvider {
   buildRequest(req: AiRequest, apiKey: string): BuiltRequest
   /** Parse one raw SSE line. Return null for lines that carry no payload. */
   parseChunk(line: string): ParsedChunk | null
-  /** Request that lists available models — used by the Settings "Test connection" button. */
-  buildListModels(apiKey: string): BuiltRequest
-  /** Extract model ids from the list-models response body. */
-  parseModelList(body: string): string[]
+  /** Request for one page of available models — used by Settings and the chat panel's model picker. */
+  buildListModels(apiKey: string, pageToken?: string): BuiltRequest
+  /**
+   * Extract one page of models from a list-models response body. Only models
+   * usable for the assistant's chat/edit/find modes are returned.
+   */
+  parseModelList(body: string): ModelListPage
   /** Turn an error response body into something worth showing a user. */
   parseError(status: number, body: string): string
 }

@@ -11,20 +11,26 @@ per-version notes in `src/renderer/src/components/WhatsNewTab/releaseNotes.tsx`.
 ## [Unreleased]
 
 ### Added
-- **Search in Markdown Preview.** The preview pane has a search bar (magnifier button in the
-  header, or `Ctrl/Cmd+F` while the preview is focused or fullscreen) with match count,
-  Enter / Shift+Enter navigation, and live highlighting of every match in the rendered document.
-- **Reload from Disk** in the tab right-click menu. Dirty buffers ask for confirmation before
-  unsaved changes are discarded — the same confirmation now also guards *File ▸ Reload*.
-- **Model picker for the AI assistant.** Settings ▸ AI Assistant now offers the Gemini models as
-  a dropdown (populated live after *Test connection*), with a *Custom…* escape hatch for typing
-  model ids not in the list.
 - **Linux builds.** `pnpm run package:linux` produces an AppImage, an rpm, and a deb. The rpm/deb
   add an app-menu entry, icons, *Open With* for text/source files, and the `novapad://` link
   handler; tagged releases now publish Linux packages and `latest-linux.yml` so the AppImage can
   auto-update (rpm/deb installs update through a new package). On Linux the in-app menu bar is the
   only one (Alt no longer reveals a second native bar), Alt-key menu mnemonics work as on Windows,
   and files opened from GNOME-style file managers (passed as `file://` URIs) load correctly.
+
+## [1.6.6]
+
+### Added
+- **Search in Markdown Preview.** The preview pane has a search bar (magnifier button in the
+  header, or `Ctrl/Cmd+F` while the preview is focused or fullscreen) with match count,
+  Enter / Shift+Enter navigation, and live highlighting of every match in the rendered document.
+- **Reload from Disk** in the tab right-click menu. Dirty buffers ask for confirmation before
+  unsaved changes are discarded — the same confirmation now also guards *File ▸ Reload*.
+- **Model picker for the AI assistant.** Settings ▸ AI Assistant lists every chat model the stored
+  API key can use (all pages of the list, with display names), loaded automatically once a key
+  exists and refreshable on demand. The AI chat panel header has a model dropdown backed by the
+  same list. TTS, image, live-audio, embedding and Gemma models are filtered out; *Custom…* still
+  accepts any model id, and *Test connection* no longer overwrites a custom id.
 
 ### Fixed
 - Pasting a very long search term no longer breaks the Find & Replace dialog layout: status
@@ -199,7 +205,8 @@ per-version notes in `src/renderer/src/components/WhatsNewTab/releaseNotes.tsx`.
 - **Settings page reset its selected category** when you switched to another tab and back — the
   active category is now preserved.
 
-[Unreleased]: https://github.com/novapizza/novapad/compare/v1.6.5...HEAD
+[Unreleased]: https://github.com/novapizza/novapad/compare/v1.6.6...HEAD
+[1.6.6]: https://github.com/novapizza/novapad/compare/v1.6.5...v1.6.6
 [1.6.5]: https://github.com/novapizza/novapad/compare/v1.6.0...v1.6.5
 [1.6.0]: https://github.com/novapizza/novapad/compare/v1.5.9...v1.6.0
 [1.5.9]: https://github.com/novapizza/novapad/compare/v1.5.8...v1.5.9

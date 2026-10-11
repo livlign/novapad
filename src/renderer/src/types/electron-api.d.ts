@@ -140,7 +140,11 @@ interface ElectronAPI {
     setKey: (provider: string, key: string) => Promise<{ error: string | null }>
     clearKey: (provider: string) => Promise<{ error: string | null }>
     providers: () => Promise<Array<{ id: string; label: string; defaultModels: string[] }>>
-    test: (provider: string) => Promise<{ ok: boolean; models: string[]; error: string | null }>
+    test: (provider: string) => Promise<{
+      ok: boolean
+      models: Array<{ id: string; displayName: string }>
+      error: string | null
+    }>
     send: (
       provider: string,
       request: object

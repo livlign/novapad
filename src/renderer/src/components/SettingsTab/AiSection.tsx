@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { AlertTriangle, Check, Eye, EyeOff, Loader2, ShieldCheck, Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Eye, EyeOff, Loader2, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useConfigStore, AppConfig } from '../../store/configStore'
+import { useAiStore, AiModelOption } from '../../store/aiStore'
 import { cn } from '../../lib/utils'
 
 /**
@@ -36,12 +37,19 @@ export function AiSection(): React.ReactElement {
 
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
-  const [liveModels, setLiveModels] = useState<string[]>([])
+  const liveModels = useAiStore((s) => s.availableModels)
+  const modelsLoading = useAiStore((s) => s.modelsLoading)
+  const modelsError = useAiStore((s) => s.modelsError)
+  const loadModels = useAiStore((s) => s.loadModels)
+  const resetModels = useAiStore((s) => s.resetModels)
 
   const refresh = async (): Promise<void> => {
     const s = await window.api.ai.status(config.aiProvider)
     setStatus(s)
     setEditing(!s.hasKey)
+    // With a key already stored, list its models straight away instead of
+    // making the user discover the Test connection button first.
+    if (s.hasKey) void loadModels()
   }
 
   useEffect(() => {
@@ -62,6 +70,8 @@ export function AiSection(): React.ReactElement {
     setDraftKey('')
     setRevealDraft(false)
     setTestResult(null)
+    // A different key can see a different set of models.
+    resetModels()
     await refresh()
     // A newly stored key is worth validating straight away — cheaper than
     // discovering it is wrong on the first real question.
@@ -77,45 +87,57 @@ export function AiSection(): React.ReactElement {
     if (!ok) return
     await window.api.ai.clearKey(config.aiProvider)
     setTestResult(null)
-    setLiveModels([])
+    resetModels()
     await refresh()
   }
 
   const runTest = async (): Promise<void> => {
     setTesting(true)
     setTestResult(null)
-    const res = await window.api.ai.test(config.aiProvider)
+    const res = await loadModels(true)
     setTesting(false)
     if (!res.ok) {
       setTestResult({ ok: false, message: res.error ?? 'The connection test failed.' })
       return
     }
-    setLiveModels(res.models)
+    const ids = (useAiStore.getState().availableModels ?? []).map((m) => m.id)
+    const current = useConfigStore.getState().aiModel
     setTestResult({
       ok: true,
-      message: `Key is valid — ${res.models.length} model${res.models.length === 1 ? '' : 's'} available.`
+      message: `Key is valid — ${ids.length} chat model${ids.length === 1 ? '' : 's'} available.`
     })
-    // If the configured model isn't in the account's list, say so rather than
-    // letting the first real request fail with a bare 404.
-    if (res.models.length > 0 && !res.models.includes(config.aiModel)) {
-      const fallback = res.models.find((m) => m.includes('flash')) ?? res.models[0]
+    if (ids.length === 0 || ids.includes(current)) return
+    // The configured model isn't in the key's list. If it came from our own
+    // suggestions, switch rather than letting the first real request 404. A
+    // model the user typed via Custom… is left alone — the list is filtered to
+    // chat models, so a deliberate choice may legitimately be missing from it.
+    if (!current || status?.defaultModels.includes(current)) {
+      const fallback = ids.find((m) => m.includes('flash')) ?? ids[0]
       setTestResult({
         ok: true,
-        message: `Key is valid, but "${config.aiModel}" isn't available to it. Switched to "${fallback}".`
+        message: `Key is valid, but "${current}" isn't available to it. Switched to "${fallback}".`
       })
       set('aiModel', fallback)
+    } else {
+      setTestResult({
+        ok: true,
+        message: `Key is valid, but "${current}" isn't in its chat model list. Requests may fail.`
+      })
     }
   }
 
-  const modelOptions = liveModels.length > 0 ? liveModels : status?.defaultModels ?? []
+  const modelOptions: AiModelOption[] =
+    liveModels && liveModels.length > 0
+      ? liveModels
+      : (status?.defaultModels ?? []).map((id) => ({ id, displayName: id }))
   // "Custom" mode swaps the dropdown for a free-text field, for model ids that
   // aren't in the suggestion list yet (Google ships new ids constantly).
   const [customModel, setCustomModel] = useState(false)
   // The dropdown must always display the configured value, even one that came
   // from an older default list or was typed in custom mode.
   const selectOptions =
-    config.aiModel && !modelOptions.includes(config.aiModel)
-      ? [config.aiModel, ...modelOptions]
+    config.aiModel && !modelOptions.some((m) => m.id === config.aiModel)
+      ? [{ id: config.aiModel, displayName: config.aiModel }, ...modelOptions]
       : modelOptions
 
   return (
@@ -282,11 +304,27 @@ export function AiSection(): React.ReactElement {
               data-testid="ai-model-select"
             >
               {selectOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
+                <option key={m.id} value={m.id}>
+                  {m.displayName === m.id ? m.id : `${m.displayName} · ${m.id}`}
                 </option>
               ))}
             </select>
+          )}
+          {!customModel && (
+            <button
+              className={cn(
+                'flex items-center rounded border border-border bg-transparent p-1 text-muted-foreground',
+                status?.hasKey && !modelsLoading
+                  ? 'cursor-pointer hover:bg-secondary hover:text-foreground'
+                  : 'cursor-not-allowed opacity-50'
+              )}
+              disabled={!status?.hasKey || modelsLoading}
+              onClick={() => void loadModels(true)}
+              title="Reload the models your key can use"
+              data-testid="ai-model-refresh"
+            >
+              <RefreshCw size={13} className={cn(modelsLoading && 'animate-spin')} />
+            </button>
           )}
           <button
             className="cursor-pointer rounded border border-border bg-transparent px-2 py-1 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -298,7 +336,11 @@ export function AiSection(): React.ReactElement {
         </Row>
         <p className="-mt-1 ml-[136px] text-xs text-muted-foreground">
           Flash models are the fast, low-cost choice for document work.{' '}
-          {liveModels.length === 0 && 'Run Test connection to list the models your key can use.'}
+          {modelsLoading
+            ? 'Loading the models your key can use…'
+            : modelsError
+              ? `Couldn't load your key's models: ${modelsError}`
+              : !liveModels && 'Add a key to list the models it can use.'}
         </p>
 
         <Row label="Default context">

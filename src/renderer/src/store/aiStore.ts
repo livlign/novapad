@@ -48,6 +48,12 @@ export interface PendingEdit {
 
 export type SendMode = 'chat' | 'edit' | 'find'
 
+/** One entry of the live model list returned for the stored API key. */
+export interface AiModelOption {
+  id: string
+  displayName: string
+}
+
 /** Shared empty transcript — see the comment on messagesFor. */
 const NO_MESSAGES: ChatMessage[] = []
 
@@ -61,6 +67,14 @@ interface AiState {
   pendingEdits: Record<string, PendingEdit>
   /** Context override chosen in the panel for the next send; null = use the config default. */
   contextOverride: ContextMode | null
+  /**
+   * Chat-capable models the stored key can use, newest first. Null until the
+   * first fetch; shared by Settings and the chat panel so the list survives
+   * navigating away from Settings.
+   */
+  availableModels: AiModelOption[] | null
+  modelsLoading: boolean
+  modelsError: string | null
 
   openPanel: () => void
   closePanel: () => void
@@ -68,6 +82,10 @@ interface AiState {
   setContextOverride: (m: ContextMode | null) => void
   messagesFor: (bufferId: string | null) => ChatMessage[]
   clearConversation: (bufferId: string) => void
+  /** Fetch the live model list. Without `force`, a list already loaded (or loading) is reused. */
+  loadModels: (force?: boolean) => Promise<{ ok: boolean; error: string | null }>
+  /** Drop the cached list, e.g. after the key is removed or replaced. */
+  resetModels: () => void
 
   send: (prompt: string, mode: SendMode) => Promise<void>
   cancel: () => Promise<void>
@@ -83,6 +101,10 @@ interface AiState {
 }
 
 let seq = 0
+/** The model-list fetch in progress, so concurrent callers share one request. */
+let modelsInFlight: Promise<{ ok: boolean; error: string | null }> | null = null
+/** Bumped per fetch and on reset, so a stale response never overwrites a newer one. */
+let modelsTicket = 0
 const nextId = (): string => `ai-${Date.now().toString(36)}-${(seq++).toString(36)}`
 
 /** Model output for structured modes arrives as one JSON blob. */
@@ -103,6 +125,9 @@ export const useAiStore = create<AiState>((set, get) => ({
   active: null,
   pendingEdits: {},
   contextOverride: null,
+  availableModels: null,
+  modelsLoading: false,
+  modelsError: null,
 
   openPanel: () => set({ panelOpen: true }),
   closePanel: () => set({ panelOpen: false }),
@@ -119,6 +144,40 @@ export const useAiStore = create<AiState>((set, get) => ({
       delete next[bufferId]
       return { conversations: next }
     }),
+
+  loadModels: (force = false) => {
+    if (!force) {
+      if (modelsInFlight) return modelsInFlight
+      if (get().availableModels) return Promise.resolve({ ok: true, error: null })
+    }
+    set({ modelsLoading: true, modelsError: null })
+    const ticket = ++modelsTicket
+    const run = (async (): Promise<{ ok: boolean; error: string | null }> => {
+      let res: Awaited<ReturnType<typeof window.api.ai.test>>
+      try {
+        res = await window.api.ai.test(useConfigStore.getState().aiProvider)
+      } catch (err) {
+        res = { ok: false, models: [], error: (err as Error).message || 'Could not load the model list.' }
+      }
+      // A newer forced fetch (or a reset) supersedes this one; let it write the result.
+      if (ticket !== modelsTicket) return { ok: res.ok, error: res.error }
+      modelsInFlight = null
+      if (!res.ok) {
+        set({ modelsLoading: false, modelsError: res.error ?? 'Could not load the model list.' })
+        return { ok: false, error: res.error }
+      }
+      set({ modelsLoading: false, availableModels: res.models, modelsError: null })
+      return { ok: true, error: null }
+    })()
+    modelsInFlight = run
+    return run
+  },
+
+  resetModels: () => {
+    modelsTicket++
+    modelsInFlight = null
+    set({ availableModels: null, modelsLoading: false, modelsError: null })
+  },
 
   send: async (prompt, mode) => {
     const cfg = useConfigStore.getState()

@@ -1,6 +1,6 @@
 import { ipcMain, net, WebContents } from 'electron'
 import { randomUUID } from 'crypto'
-import { AiRequest, AiTurn, BuiltRequest, AiProvider } from '../ai/provider'
+import { AiModelInfo, AiRequest, AiTurn, BuiltRequest, AiProvider } from '../ai/provider'
 import { getProvider, PROVIDERS } from '../ai/gemini'
 import * as credentials from '../ai/credentials'
 
@@ -28,6 +28,7 @@ const MAX_CONCURRENT_PER_WINDOW = 4
 const MAX_CONTEXT_CHARS = 400_000
 const MAX_PROMPT_CHARS = 32_000
 const MAX_HISTORY_TURNS = 40
+const MAX_MODEL_PAGES = 5
 
 interface InFlight {
   abort: () => void
@@ -337,8 +338,21 @@ export function registerAiHandlers(): void {
     const key = credentials.getKey(p.id)
     if (!key) return { ok: false, models: [], error: 'No API key is stored for this provider.' }
     try {
-      const body = await fetchOnce(p.buildListModels(key), p)
-      const models = p.parseModelList(body)
+      const byId = new Map<string, AiModelInfo>()
+      let pageToken: string | undefined
+      // Follow pagination, but cap it — a provider that keeps handing back
+      // tokens must not turn one click into an unbounded request loop.
+      for (let page = 0; page < MAX_MODEL_PAGES; page++) {
+        const body = await fetchOnce(p.buildListModels(key, pageToken), p)
+        const { models, nextPageToken } = p.parseModelList(body)
+        for (const m of models) if (!byId.has(m.id)) byId.set(m.id, m)
+        if (!nextPageToken) break
+        pageToken = nextPageToken
+      }
+      // Newest generation first: numeric-aware descending puts gemini-3.5-* above gemini-2.5-*.
+      const models = [...byId.values()].sort((a, b) =>
+        b.id.localeCompare(a.id, undefined, { numeric: true })
+      )
       return { ok: true, models, error: null }
     } catch (err) {
       return { ok: false, models: [], error: (err as Error).message }

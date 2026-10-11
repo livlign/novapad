@@ -32,12 +32,11 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: '1.6.5',
+    version: '1.6.6',
     summary: (
       <>
-        A <strong>command palette</strong> that searches everything NovaPad can do, a Keyboard Shortcuts
-        editor that finally applies your rebinds, and <strong>Sticky Notes</strong> — a scratchpad that
-        never becomes a tab.
+        Pick from <strong>every Gemini model your key can use</strong> — in Settings or straight from the
+        chat panel — plus search inside the Markdown preview and <em>Reload from Disk</em> on any tab.
       </>
     ),
     highlights: [
@@ -76,16 +75,38 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         )
       },
       {
-        title: 'Pick the Gemini model from a list',
+        title: 'Pick any Gemini model your key can use',
         body: (
           <>
-            <strong>Settings ▸ AI Assistant</strong> now offers the model as a dropdown. Run{' '}
-            <em>Test connection</em> and it fills with the models your key can actually use; a{' '}
-            <em>Custom…</em> button still lets you type any model id by hand. Also fixed: pasting a very
-            long search term no longer breaks the Find &amp; Replace dialog layout.
+            <strong>Settings ▸ AI Assistant</strong> now lists every chat model your API key has access to,
+            loaded automatically as soon as a key is saved, with display names and a refresh button. The same
+            list is available from a model dropdown in the AI chat panel header, so switching models no longer
+            means a trip to Settings. Speech, image and embedding models are left out because the assistant
+            can&apos;t use them; <em>Custom…</em> still lets you type any model id by hand.
           </>
         )
       },
+      {
+        title: 'Find & Replace handles long search terms',
+        body: (
+          <>
+            Pasting a very long search term no longer breaks the Find &amp; Replace dialog layout: status
+            messages and result toasts truncate the quoted pattern and wrap instead of overflowing the window.
+          </>
+        )
+      }
+    ]
+  },
+  {
+    version: '1.6.5',
+    summary: (
+      <>
+        A <strong>command palette</strong> that searches everything NovaPad can do, a Keyboard Shortcuts
+        editor that finally applies your rebinds, and <strong>Sticky Notes</strong> — a scratchpad that
+        never becomes a tab.
+      </>
+    ),
+    highlights: [
       {
         title: 'Command palette — one search box for every command',
         body: (
